@@ -545,10 +545,11 @@ document.getElementById("connect-btn").addEventListener("click", async () => {
 
 async function checkNeo4j() {
   try {
-    const res = await graphQL(`{ restaurantFeaturesConnection { totalCount } }`);
-    const ok  = res?.data?.restaurantFeaturesConnection !== undefined;
+    const res = await graphQL(`{ staff(where: ${tenantWhere()}) { name } }`);
+    const ok  = !res?.errors && Array.isArray(res?.data?.staff);
     document.getElementById("badge-neo4j").className = `badge ${ok ? "ok" : "err"}`;
     document.getElementById("badge-neo4j").textContent = ok ? "Neo4j ✓" : "Neo4j ✗";
+    if (res?.errors) console.warn("Neo4j schema error:", res.errors[0].message);
   } catch { document.getElementById("badge-neo4j").className = "badge err"; }
 }
 
@@ -574,13 +575,12 @@ document.getElementById("status-text").textContent = "Enter key above";
 async function loadDishNames() {
   try {
     const q = `{
-      dishes(where: { restaurantId: { eq: "${TENANT.neo4jRestId}" } }) {
-        name
-      }
+      dishes(where: ${tenantWhere()}) { name }
     }`;
     const res = await graphQL(q);
     const dishes = res?.data?.dishes || [];
     DISH_NAMES = new Set(dishes.map(d => d.name.toLowerCase()));
+    console.log(`Loaded ${DISH_NAMES.size} dish names for ${TENANT.id}`);
   } catch(e) {
     console.warn("Could not load dish names:", e);
   }
@@ -609,18 +609,44 @@ function tenantWhere(extra = "") {
 
 /* ──────────────────────────────────────────────
    9. ROUTING — intent classification
+   IMPORTANT: descriptive ("similar to", "mild", "good for kids") goes to
+   Pinecone. But concrete menu keywords (chicken, paneer, biryani…) go to
+   Neo4j first — Neo4j has working CORS, Voyage/Pinecone may not from a
+   static browser page. This keeps menu lookups reliable.
 ────────────────────────────────────────────── */
+// Protein / ingredient / dish-type keywords that map to a Neo4j name-contains search.
+const DISH_KEYWORDS = [
+  "chicken","paneer","lamb","goat","shrimp","prawn","fish","seafood",
+  "biryani","biriyani","naan","dosa","samosa","pakora","tikka","masala",
+  "korma","vindaloo","tandoori","curry","dal","rice","lassi","kheer",
+  "gulab jamun","kulfi","bread","dessert","sweet"
+];
+// Descriptive language that should go straight to semantic search.
+const DESCRIPTIVE_RE = /\b(similar to|something like|close to|alternative to|instead of|reminds me|mild|creamy|spicy|warming|hearty|indulgent|filling|light|adventurous|romantic|date night|good for kids|high protein|low carb|keto|surprise me|recommend|comfort food|smoky|aromatic|rich|velvety|not too)\b/i;
+
 function classifyIntent(text) {
   const t = text.toLowerCase();
-  if (/\b(beef|cow|pork|lard)\b/.test(t)) return "beef_guard";
+  if (/\b(beef|cow|pork|lard|bacon|ham)\b/.test(t)) return "beef_guard";
   if (/\b(allerg|gluten|nut|dairy|lactose|egg|shellfish|peanut)\b/.test(t)) return "allergen";
-  if (/\b(staff|waiter|server|manager|chef|team|employee|who work)\b/.test(t)) return "staff";
+  if (/\b(staff|waiter|waitress|server|manager|chef|team|employee|who work|who serves)\b/.test(t)) return "staff";
   if (/\b(hour|open|close|timing|when|buffet|schedule)\b/.test(t)) return "timing";
   if (/\b(feature|facilit|accommodat|accessib|parking|wifi|bar|lounge|valet)\b/.test(t)) return "features";
-  if (/\b(similar to|like |pairs? with|goes? with)\b/.test(t)) return "similar";
+  // similarity / descriptive → semantic (check BEFORE dish keywords)
+  if (DESCRIPTIVE_RE.test(t)) return "similar";
   if (/\b(vegetarian|vegan|veg\b|meatless)\b/.test(t)) return "veg_filter";
-  if (/\b(categor|type|kind|section|section of menu)\b/.test(t)) return "category";
-  return "semantic";  // default → Pinecone
+  if (/\b(categor|section|menu sections?)\b/.test(t)) return "category";
+  // concrete menu keyword → Neo4j name search (the reliable path)
+  if (DISH_KEYWORDS.some(k => t.includes(k))) return "dish_lookup";
+  return "semantic";  // last resort → Pinecone (degrades gracefully if blocked)
+}
+
+// pull the matched dish keyword out of the text for the Neo4j search
+function extractDishKeyword(text) {
+  const t = text.toLowerCase();
+  // prefer the longest match (e.g. "gulab jamun" over "sweet")
+  return DISH_KEYWORDS
+    .filter(k => t.includes(k))
+    .sort((a, b) => b.length - a.length)[0] || "";
 }
 
 /* ──────────────────────────────────────────────
@@ -641,116 +667,151 @@ function setCache(k, val) { cache[k] = { val, ts: Date.now() }; }
 /* ──────────────────────────────────────────────
    11. DATA FETCHERS (all tenant-aware)
 ────────────────────────────────────────────── */
+/* NOTE: schema field names below are the REAL v7 Neo4j GraphQL names.
+   Booleans (isVeg/isVegan/mustTry/isBeverage) are stored as STRINGS ("true").
+   Relationship fields: categories→includesDishes, dishes→pairsWellWithDishes. */
+
 async function fetchStaff() {
   const q = `{
-    staffs(where: ${tenantWhere()}) {
-      name role speciality phoneNumber
+    staff(where: ${tenantWhere()}) {
+      name role expertise
     }
   }`;
-  return graphQL(q);
+  return (await graphQL(q))?.data?.staff || [];
 }
 
 async function fetchTiming() {
   const q = `{
     timings(where: ${tenantWhere()}) {
-      dayOfWeek openTime closeTime buffetNote isOpen
+      fullSummary lunchHours dinnerHours closedOn closedMessage timezone buffetHours buffetNote
     }
   }`;
-  return graphQL(q);
+  return (await graphQL(q))?.data?.timings || [];
 }
 
 async function fetchFeatures() {
   const q = `{
     restaurantFeatures(where: ${tenantWhere()}) {
-      name description
+      property value type
     }
   }`;
-  return graphQL(q);
+  return (await graphQL(q))?.data?.restaurantFeatures || [];
 }
 
 async function fetchAllergens() {
   const q = `{
     allergens(where: ${tenantWhere()}) {
-      name description dishes { name }
+      name severity commonIn
     }
   }`;
-  return graphQL(q);
+  return (await graphQL(q))?.data?.allergens || [];
 }
 
 async function fetchVegDishes() {
   const q = `{
-    dishes(where: ${tenantWhere("isVeg: { eq: true }")}) {
-      name price description isVeg category { name }
+    dishes(where: ${tenantWhere('isVeg: { eq: "true" }')}) {
+      name price spiceLevel mustTry desc isVeg
     }
   }`;
-  return graphQL(q);
+  return (await graphQL(q))?.data?.dishes || [];
 }
 
-async function fetchDish(name) {
+/* keyword dish search — "chicken", "paneer", "lamb", etc. → Neo4j */
+async function fetchDishesByKeyword(keyword) {
+  const safe = keyword.replace(/"/g, "");
   const q = `{
-    dishes(where: ${tenantWhere(`name: { contains: "${name}" }`)}) {
-      name price description isVeg spiceLevel
-      category { name }
-      pairsWellWith { name price }
-      allergens { name }
+    dishes(where: ${tenantWhere(`name: { contains: "${safe}" }`)}) {
+      name price spiceLevel isVeg mustTry desc
     }
   }`;
-  return graphQL(q);
+  return (await graphQL(q))?.data?.dishes || [];
+}
+
+/* exact dish lookup with pairings */
+async function fetchDish(name) {
+  const safe = name.replace(/"/g, "");
+  const q = `{
+    dishes(where: ${tenantWhere(`name: { contains: "${safe}" }`)}) {
+      name price spiceLevel isVeg mustTry desc
+      pairsWellWithDishes { name price spiceLevel }
+    }
+  }`;
+  return (await graphQL(q))?.data?.dishes || [];
 }
 
 async function fetchSimilar(name) {
+  const safe = name.replace(/"/g, "");
   const q = `{
-    dishes(where: ${tenantWhere(`name: { contains: "${name}" }`)}) {
-      name pairsWellWith { name price description }
+    dishes(where: ${tenantWhere(`name: { contains: "${safe}" }`)}) {
+      name price pairsWellWithDishes { name price spiceLevel desc }
     }
   }`;
-  return graphQL(q);
+  return (await graphQL(q))?.data?.dishes || [];
 }
 
 async function fetchCategories() {
   const q = `{
     categories(where: ${tenantWhere()}) {
       name
-      dishes { name price description }
+      includesDishes { name price spiceLevel }
     }
   }`;
-  return graphQL(q);
+  return (await graphQL(q))?.data?.categories || [];
 }
 
 /* ──────────────────────────────────────────────
    12. VOYAGE EMBEDDING + PINECONE SEMANTIC SEARCH
+   Both degrade gracefully: a CORS/network failure returns null/[]
+   instead of throwing, so the chat never shows "Failed to fetch".
 ────────────────────────────────────────────── */
 async function embed(text) {
-  const res = await fetch("https://api.voyageai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${VOYAGE_KEY}`
-    },
-    body: JSON.stringify({ input: [text], model: "voyage-3-lite" })
-  });
-  const d = await res.json();
-  return d.data[0].embedding;
+  try {
+    const res = await fetch("https://api.voyageai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${VOYAGE_KEY}`
+      },
+      body: JSON.stringify({ model: "voyage-3-lite", input: [text], input_type: "query" })
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    if (d.error) return null;
+    return d.data?.[0]?.embedding || null;
+  } catch (e) {
+    console.warn("Voyage embed failed (likely CORS from browser):", e.message);
+    return null;
+  }
 }
 
-async function pineconeSearch(text, excludeName = "", topK = 5) {
+async function pineconeSearch(text, excludeName = "", topK = 7) {
   const vector = await embed(text);
-  const body = {
-    vector,
-    topK,
-    namespace: TENANT.pineconeNS,   // ← TENANT-AWARE
-    includeMetadata: true
-  };
-  if (excludeName) {
-    body.filter = { name: { "$ne": excludeName } };
+  if (!vector) return [];   // Voyage unavailable → no semantic results
+  try {
+    const body = {
+      vector,
+      topK,
+      namespace: TENANT.pineconeNS,   // ← TENANT-AWARE
+      includeMetadata: true
+    };
+    const res = await fetch(`${PINECONE_HOST}/query`, {
+      method: "POST",
+      headers: { "Api-Key": PINECONE_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) return [];
+    const d = await res.json();
+    let matches = d.matches || [];
+    if (excludeName) {
+      const ex = excludeName.toLowerCase();
+      matches = matches.filter(m => (m.metadata?.name || "").toLowerCase() !== ex);
+    }
+    // voyage-3-lite scores run low — keep the v7 threshold of 0.40
+    return matches.filter(m => m.score >= 0.40);
+  } catch (e) {
+    console.warn("Pinecone query failed:", e.message);
+    return [];
   }
-  const res = await fetch(`${PINECONE_HOST}/query`, {
-    method: "POST",
-    headers: { "Api-Key": PINECONE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  const d = await res.json();
-  return d.matches || [];
 }
 
 /* ──────────────────────────────────────────────
@@ -760,58 +821,66 @@ async function buildContext(intent, text) {
   let ctx = "", source = "none";
 
   if (intent === "staff") {
-    const d = await fetchStaff();
-    ctx = JSON.stringify(d?.data?.staffs || []);
+    ctx = JSON.stringify(await fetchStaff());
     source = "neo4j:staff";
+
   } else if (intent === "timing") {
-    const d = await fetchTiming();
-    ctx = JSON.stringify(d?.data?.timings || []);
+    ctx = JSON.stringify(await fetchTiming());
     source = "neo4j:timing";
+
   } else if (intent === "features") {
-    const d = await fetchFeatures();
-    ctx = JSON.stringify(d?.data?.restaurantFeatures || []);
+    ctx = JSON.stringify(await fetchFeatures());
     source = "neo4j:features";
+
   } else if (intent === "allergen") {
-    const d = await fetchAllergens();
-    ctx = JSON.stringify(d?.data?.allergens || []);
+    ctx = JSON.stringify(await fetchAllergens());
     source = "neo4j:allergen";
+
   } else if (intent === "veg_filter") {
-    const d = await fetchVegDishes();
-    ctx = JSON.stringify(d?.data?.dishes || []);
+    ctx = JSON.stringify(await fetchVegDishes());
     source = "neo4j:veg";
+
   } else if (intent === "category") {
-    const d = await fetchCategories();
-    ctx = JSON.stringify(d?.data?.categories || []);
+    ctx = JSON.stringify(await fetchCategories());
     source = "neo4j:categories";
+
+  } else if (intent === "dish_lookup") {
+    // concrete menu keyword → reliable Neo4j name search
+    const kw = extractDishKeyword(text);
+    const dishes = kw ? await fetchDishesByKeyword(kw) : [];
+    ctx = "VERIFIED MENU ITEMS (recommend ONLY these, do not invent others): "
+        + JSON.stringify(dishes);
+    source = `neo4j:dishes(contains "${kw}")`;
+
   } else if (intent === "similar") {
-    const match = text.match(/similar to (.+)|like (.+)|pairs? with (.+)|goes? with (.+)/i);
-    const dishName = (match?.[1] || match?.[2] || match?.[3] || match?.[4] || "").trim();
+    const match = text.match(/similar to (.+)|something like (.+)|close to (.+)|alternative to (.+)|instead of (.+)/i);
+    const dishName = (match?.[1] || match?.[2] || match?.[3] || match?.[4] || match?.[5] || "").trim();
     if (dishName) {
-      const d = await fetchSimilar(dishName);
-      const neo4jCtx = JSON.stringify(d?.data?.dishes || []);
-      const pine     = await pineconeSearch(text, dishName);
-      ctx    = neo4jCtx + "\n\nSemantic matches:\n" + JSON.stringify(pine);
-      source = "neo4j:pairs + pinecone";
+      const pairs = await fetchSimilar(dishName);
+      const pine  = await pineconeSearch(text, dishName);
+      ctx    = "Neo4j pairings: " + JSON.stringify(pairs)
+             + "\n\nSemantic matches: " + JSON.stringify(pine);
+      source = pine.length ? "neo4j:pairs + pinecone" : "neo4j:pairs";
     } else {
       const pine = await pineconeSearch(text);
-      ctx = JSON.stringify(pine); source = "pinecone";
+      ctx = JSON.stringify(pine);
+      source = pine.length ? "pinecone" : "semantic (no results)";
     }
+
   } else if (intent === "semantic") {
-    // check if a known dish name is mentioned → fetch from Neo4j first
-    const lowerText = text.toLowerCase();
-    let dishHit = null;
-    for (const dn of DISH_NAMES) {
-      if (lowerText.includes(dn)) { dishHit = dn; break; }
-    }
+    // try Neo4j for any known dish name first, then add semantic matches
+    const lower = text.toLowerCase();
+    const dishHit = [...DISH_NAMES].find(dn => lower.includes(dn)) || null;
     if (dishHit) {
-      const d = await fetchDish(dishHit);
-      const neo4jCtx = JSON.stringify(d?.data?.dishes || []);
-      const pine     = await pineconeSearch(text);
-      ctx    = neo4jCtx + "\n\nSemantic matches:\n" + JSON.stringify(pine);
-      source = "neo4j:dish + pinecone";
+      const dishes = await fetchDish(dishHit);
+      const pine   = await pineconeSearch(text);
+      ctx    = "Neo4j dish: " + JSON.stringify(dishes)
+             + "\n\nSemantic matches: " + JSON.stringify(pine);
+      source = pine.length ? "neo4j:dish + pinecone" : "neo4j:dish";
     } else {
       const pine = await pineconeSearch(text);
-      ctx = JSON.stringify(pine); source = "pinecone";
+      ctx = JSON.stringify(pine);
+      source = pine.length ? "pinecone" : "semantic (no results)";
     }
   }
 
