@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title id="page-title">Chef Krish v8</title>
+
+  <!-- Google Sign-In -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    /* ─── CSS variables – overridden per tenant ─── */
+    :root {
+      --primary:   #c0392b;
+      --secondary: #e67e22;
+      --accent:    #f39c12;
+      --bg:        #1a0a00;
+      --surface:   #2d1200;
+      --surface2:  #3d1800;
+      --text:      #f5e6d0;
+      --text-muted:#a07850;
+      --border:    #5a2d00;
+      --chip-bg:   #3d1800;
+      --chip-text: #f5e6d0;
+      --logo-emoji:"\1F35B"; /* 🍛 */
+    }
+
+    /* Parish theme */
+    body.tenant-parish {
+      --primary:   #1a3a5c;
+      --secondary: #2980b9;
+      --accent:    #e8b84b;
+      --bg:        #0d1b2a;
+      --surface:   #152232;
+      --surface2:  #1e3045;
+      --text:      #e8e4d0;
+      --text-muted:#7a9ab5;
+      --border:    #2a4a6a;
+      --chip-bg:   #1e3045;
+      --chip-text: #e8e4d0;
+      --logo-emoji:"\1F356"; /* 🍖 */
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Georgia', serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    /* ─── HEADER ─── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    #logo-img { height: 42px; border-radius: 8px; display: none; }
+    #logo-emoji-el { font-size: 32px; line-height: 1; }
+    .header-title { flex: 1; }
+    .header-title h1 { font-size: 1.1rem; color: var(--accent); }
+    .header-title p  { font-size: 0.72rem; color: var(--text-muted); }
+    .header-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+    .badge {
+      font-size: 0.62rem; padding: 2px 8px; border-radius: 12px;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .badge.ok  { border-color: #27ae60; color: #27ae60; }
+    .badge.err { border-color: #e74c3c; color: #e74c3c; }
+
+    /* sign-in + cart row */
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+    #signin-btn {
+      font-size: 0.72rem; padding: 4px 10px;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; cursor: pointer;
+    }
+    #cart-btn {
+      font-size: 0.72rem; padding: 4px 10px;
+      background: var(--primary); border: none;
+      color: #fff; border-radius: 6px; cursor: pointer;
+      position: relative;
+    }
+    #cart-count {
+      position: absolute; top: -5px; right: -5px;
+      background: var(--accent); color: #000;
+      border-radius: 50%; width: 16px; height: 16px;
+      font-size: 0.6rem; display: flex; align-items: center; justify-content: center;
+      font-weight: bold;
+    }
+
+    /* ─── TENANT BANNER ─── */
+    #tenant-banner {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 4px 16px;
+      font-size: 0.7rem; color: var(--text-muted);
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+    }
+    #tenant-banner span { color: var(--accent); font-weight: bold; }
+
+    /* ─── API KEY BAR ─── */
+    #key-bar {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 12px;
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+    }
+    #key-bar label { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+    #api-key-input {
+      flex: 1; background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); padding: 4px 8px; border-radius: 6px; font-size: 0.8rem;
+    }
+    #connect-btn {
+      padding: 4px 14px; background: var(--primary); border: none;
+      color: #fff; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+    }
+    #status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #e74c3c; flex-shrink: 0;
+    }
+    #status-dot.on { background: #27ae60; }
+
+    /* ─── TABS ─── */
+    .tabs {
+      display: flex; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .tab-btn {
+      padding: 6px 14px; font-size: 0.75rem; cursor: pointer;
+      border: none; background: transparent; color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ─── CONTENT AREA ─── */
+    .tab-panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+    .tab-panel.active { display: flex; }
+
+    /* ─── CHAT PANEL ─── */
+    #chat-panel { display: flex; flex-direction: column; }
+
+    /* quick questions */
+    #quick-chips {
+      padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px;
+      border-bottom: 1px solid var(--border); overflow-y: auto; max-height: 88px;
+      flex-shrink: 0;
+    }
+    .chip {
+      font-size: 0.68rem; padding: 3px 10px; border-radius: 12px;
+      background: var(--chip-bg); border: 1px solid var(--border);
+      color: var(--chip-text); cursor: pointer; white-space: nowrap;
+    }
+    .chip:hover { border-color: var(--accent); color: var(--accent); }
+    .chip small { color: var(--text-muted); display: block; font-size: 0.58rem; }
+
+    /* messages */
+    #messages {
+      flex: 1; overflow-y: auto; padding: 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .msg { max-width: 82%; }
+    .msg.user { align-self: flex-end; }
+    .msg.bot  { align-self: flex-start; }
+    .msg-bubble {
+      padding: 8px 12px; border-radius: 12px; font-size: 0.85rem; line-height: 1.5;
+    }
+    .msg.user .msg-bubble { background: var(--primary); color: #fff; border-bottom-right-radius: 3px; }
+    .msg.bot  .msg-bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+    .msg-meta { font-size: 0.62rem; color: var(--text-muted); margin-top: 3px; padding: 0 4px; }
+    .msg.user .msg-meta { text-align: right; }
+
+    /* add-to-cart buttons inside bot messages */
+    .cart-add-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin: 3px 4px 3px 0;
+      padding: 3px 10px; font-size: 0.72rem;
+      background: var(--primary); border: none; border-radius: 10px;
+      color: #fff; cursor: pointer;
+    }
+    .cart-add-btn:hover { opacity: 0.85; }
+
+    /* input row */
+    #input-row {
+      padding: 8px 12px; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; flex-shrink: 0;
+    }
+    #user-input {
+      flex: 1; background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); padding: 8px 12px; border-radius: 20px;
+      font-size: 0.85rem; outline: none; resize: none; height: 40px; max-height: 120px;
+      font-family: inherit;
+    }
+    #send-btn, #voice-btn {
+      width: 40px; height: 40px; border-radius: 50%; border: none;
+      cursor: pointer; font-size: 1rem; flex-shrink: 0;
+    }
+    #send-btn { background: var(--primary); color: #fff; }
+    #voice-btn { background: var(--surface2); color: var(--text); }
+    #voice-btn.recording { background: #c0392b; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+    /* ─── LOGS / TOKENS PANELS ─── */
+    #logs-panel, #tokens-panel {
+      flex: 1; overflow-y: auto; padding: 12px; font-family: monospace; font-size: 0.75rem;
+    }
+    .log-entry { margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .log-entry .log-q  { color: var(--accent); }
+    .log-entry .log-src { color: #27ae60; }
+    .log-entry .log-conf { color: #f39c12; }
+
+    .token-stat { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .token-stat .label { color: var(--text-muted); }
+    .token-stat .val   { color: var(--accent); font-weight: bold; }
+
+    /* ─── CART PANEL ─── */
+    #cart-panel {
+      position: fixed; top: 0; right: -360px; width: 360px; height: 100dvh;
+      background: var(--surface); border-left: 1px solid var(--border);
+      z-index: 1000; transition: right 0.3s ease;
+      display: flex; flex-direction: column;
+    }
+    #cart-panel.open { right: 0; }
+    .cart-header {
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .cart-header h2 { font-size: 1rem; color: var(--accent); }
+    #cart-close { background: none; border: none; color: var(--text); font-size: 1.2rem; cursor: pointer; }
+    #cart-items { flex: 1; overflow-y: auto; padding: 12px; }
+    .cart-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+    }
+    .cart-item-name { flex: 1; font-size: 0.85rem; }
+    .cart-item-price { font-size: 0.85rem; color: var(--accent); width: 54px; text-align: right; }
+    .qty-ctrl { display: flex; align-items: center; gap: 4px; }
+    .qty-btn {
+      width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); cursor: pointer; font-size: 0.8rem;
+    }
+    .qty-val { font-size: 0.8rem; min-width: 18px; text-align: center; }
+    .cart-footer {
+      padding: 14px 16px; border-top: 1px solid var(--border);
+    }
+    #cart-total { font-size: 1rem; margin-bottom: 10px; text-align: right; color: var(--accent); }
+    #cart-note  { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 10px; text-align: center; }
+    #whatsapp-btn {
+      width: 100%; padding: 10px; background: #25d366; border: none;
+      border-radius: 8px; color: #fff; font-size: 0.9rem; cursor: pointer; font-weight: bold;
+    }
+    #whatsapp-btn:hover { background: #1ebe5c; }
+
+    /* ─── THINKING INDICATOR ─── */
+    .thinking { display: flex; gap: 4px; padding: 10px 14px; }
+    .thinking span {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted);
+      animation: bounce 1.2s infinite;
+    }
+    .thinking span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100%{transform:scale(0.8);opacity:0.5} 40%{transform:scale(1.2);opacity:1} }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 480px) {
+      #cart-panel { width: 100%; }
+      .header-badges { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     CART SLIDE-OUT PANEL
+════════════════════════════════════════ -->
+<div id="cart-panel">
+  <div class="cart-header">
+    <h2>🛒 Your Order</h2>
+    <button id="cart-close">✕</button>
+  </div>
+  <div id="cart-items">
+    <p style="color:var(--text-muted);font-size:0.8rem;padding:12px 0;">
+      Your cart is empty.<br/>Ask Chef Krish for recommendations!
+    </p>
+  </div>
+  <div class="cart-footer">
+    <div id="cart-total">Total $0.00</div>
+    <div id="cart-note">🕐 Ready in ~30 min · Pickup only · Pay at counter</div>
+    <button id="whatsapp-btn">Confirm Order via WhatsApp 📲</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     HEADER
+════════════════════════════════════════ -->
+<header>
+  <div id="logo-emoji-el">🍛</div>
+  <img id="logo-img" src="" alt="logo" />
+  <div class="header-title">
+    <h1 id="header-name">Chef Krish v8</h1>
+    <p id="header-sub">Neo4j + Pinecone · Semantic RAG · Multi-Tenant</p>
+  </div>
+  <div class="header-badges">
+    <span class="badge" id="badge-neo4j">Neo4j</span>
+    <span class="badge" id="badge-pinecone">Pinecone</span>
+    <span class="badge">Gate 2</span>
+    <span class="badge" id="badge-tenant" style="border-color:var(--accent);color:var(--accent);">TOI</span>
+  </div>
+  <div class="header-actions">
+    <button id="signin-btn">🔑 Sign In</button>
+    <button id="cart-btn">🛒 Cart <span id="cart-count">0</span></button>
+  </div>
+</header>
+
+<!-- tenant info banner -->
+<div id="tenant-banner">
+  Active restaurant: <span id="banner-name">Taste of India</span>
+  &nbsp;·&nbsp; Switch: <a href="?r=parish" style="color:var(--secondary)">Parish</a>
+  &nbsp;|&nbsp; <a href="?" style="color:var(--secondary)">Taste of India</a>
+</div>
+
+<!-- API key bar -->
+<div id="key-bar">
+  <label for="api-key-input">Anthropic Key:</label>
+  <input id="api-key-input" type="password" placeholder="sk-ant-..." />
+  <button id="connect-btn">Connect</button>
+  <div id="status-dot" title="Disconnected"></div>
+  <span id="status-text" style="font-size:0.68rem;color:var(--text-muted)">Checking…</span>
+</div>
+
+<!-- tabs -->
+<div class="tabs">
+  <button class="tab-btn active" data-tab="chat">Chat</button>
+  <button class="tab-btn" data-tab="logs">Logs</button>
+  <button class="tab-btn" data-tab="tokens">Tokens</button>
+</div>
+
+<!-- ═══════════════════════════════════════
+     CHAT PANEL
+════════════════════════════════════════ -->
+<div class="tab-panel active" id="tab-chat">
+  <div id="chat-panel" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+    <div id="quick-chips"></div>
+    <div id="messages"></div>
+    <div id="input-row">
+      <button id="voice-btn" title="Voice input">🎤</button>
+      <textarea id="user-input" placeholder="Ask Chef Krish anything…" rows="1"></textarea>
+      <button id="send-btn">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     LOGS PANEL
+════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-logs">
+  <div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+    <span style="font-size:0.75rem;color:var(--text-muted)">Live query log</span>
+    <button onclick="queryLog=[];renderLogs();" style="font-size:0.68rem;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);padding:2px 8px;border-radius:4px;cursor:pointer;">Clear</button>
+  </div>
+  <div id="logs-panel"><p style="color:var(--text-muted)">No queries yet.</p></div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     TOKENS PANEL
+════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-tokens">
+  <div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+    <span style="font-size:0.75rem;color:var(--text-muted)">Token usage</span>
+    <button onclick="resetTokens();" style="font-size:0.68rem;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);padding:2px 8px;border-radius:4px;cursor:pointer;">Clear</button>
+  </div>
+  <div id="tokens-panel">
+    <div class="token-stat"><span class="label">Input</span><span class="val" id="tok-in">0</span></div>
+    <div class="token-stat"><span class="label">Output</span><span class="val" id="tok-out">0</span></div>
+    <div class="token-stat"><span class="label">Total</span><span class="val" id="tok-total">0</span></div>
+    <div class="token-stat"><span class="label">Queries</span><span class="val" id="tok-queries">0</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════ -->
+<script>
+"use strict";
+
+/* ──────────────────────────────────────────────
+   1. TENANT CONFIGURATION
+   Add new tenants here — everything else is automatic.
+────────────────────────────────────────────── */
+const TENANTS = {
+  "taste-of-india": {
+    id:           "taste-of-india",
+    name:         "Taste of India",
+    subTitle:     "Neo4j + Pinecone · Monroe LA",
+    emoji:        "🍛",
+    logoUrl:      "https://himatejaboddeda-lab.github.io/Chef_Krish_Testing_V7/chef-krish-logo.png",
+    bodyClass:    "",                    // default theme (orange/red)
+    badgeLabel:   "TOI",
+    waNumber:     "WHATSAPP_NUMBER_TOI", // ← fill in: digits + country code
+    sheetsUrl:    "SHEETS_URL_TOI",      // ← fill in: Apps Script Web App URL
+    pineconeNS:   "chef-krish",          // Pinecone namespace
+    neo4jRestId:  "taste-of-india",      // restaurantId value in Neo4j
+    switchLinks: [
+      { label: "Parish", href: "?r=parish" }
+    ],
+    quickChips: [
+      { text: "Who are your waiters?",        note: "Staff WORKS_AT" },
+      { text: "Opening hours?",               note: "Timing" },
+      { text: "Do you have buffet?",          note: "BuffetNote" },
+      { text: "Allergen warnings?",           note: "Gate 2" },
+      { text: "Chicken tikka masala",         note: "Dish lookup" },
+      { text: "Pairs with butter chicken?",   note: "PAIRS_WELL_WITH" },
+      { text: "Biryani options?",             note: "Category" },
+      { text: "Vegetarian dishes?",           note: "isVeg=true" },
+      { text: "Something mild and creamy",    note: "Pinecone" },
+      { text: "Good for kids",                note: "Pinecone" },
+      { text: "Date night dish",              note: "Pinecone" },
+    ]
+  },
+
+  "parish": {
+    id:           "parish",
+    name:         "Parish Restaurant",
+    subTitle:     "Neo4j + Pinecone · Louisiana Cuisine",
+    emoji:        "🍖",
+    logoUrl:      "",                    // add logo URL when available
+    bodyClass:    "tenant-parish",       // blue CSS theme
+    badgeLabel:   "PAR",
+    waNumber:     "WHATSAPP_NUMBER_PARISH", // ← fill in
+    sheetsUrl:    "SHEETS_URL_PARISH",      // ← fill in
+    pineconeNS:   "parish",             // separate Pinecone namespace
+    neo4jRestId:  "parish",
+    switchLinks: [
+      { label: "Taste of India", href: "?" }
+    ],
+    quickChips: [
+      { text: "What's on the menu?",        note: "Dish lookup" },
+      { text: "Vegetarian options?",        note: "isVeg=true" },
+      { text: "Allergen warnings?",         note: "Gate 2" },
+      { text: "Opening hours?",             note: "Timing" },
+      { text: "Something hearty",           note: "Pinecone" },
+      { text: "Good for families?",         note: "Pinecone" },
+      { text: "Recommend a starter",        note: "Pinecone" },
+    ]
+  }
+};
+
+/* ──────────────────────────────────────────────
+   2. DETECT TENANT FROM URL
+────────────────────────────────────────────── */
+const urlParam = new URLSearchParams(location.search).get("r") || "taste-of-india";
+const TENANT   = TENANTS[urlParam] || TENANTS["taste-of-india"];
+
+/* ──────────────────────────────────────────────
+   3. APPLY TENANT THEME & LABELS
+────────────────────────────────────────────── */
+(function applyTenant() {
+  if (TENANT.bodyClass) document.body.classList.add(TENANT.bodyClass);
+
+  document.getElementById("page-title").textContent  = `Chef Krish v8 — ${TENANT.name}`;
+  document.getElementById("header-name").textContent = `Chef Krish v8 — ${TENANT.name}`;
+  document.getElementById("header-sub").textContent  = TENANT.subTitle;
+  document.getElementById("badge-tenant").textContent = TENANT.badgeLabel;
+  document.getElementById("banner-name").textContent  = TENANT.name;
+  document.getElementById("logo-emoji-el").textContent = TENANT.emoji;
+
+  // logo image
+  if (TENANT.logoUrl) {
+    const img = document.getElementById("logo-img");
+    img.src = TENANT.logoUrl;
+    img.style.display = "block";
+    document.getElementById("logo-emoji-el").style.display = "none";
+  }
+
+  // switch links
+  const banner = document.getElementById("tenant-banner");
+  let linksHtml = `Active restaurant: <span>${TENANT.name}</span> &nbsp;·&nbsp; Switch: `;
+  linksHtml += TENANT.switchLinks.map(l => `<a href="${l.href}" style="color:var(--secondary)">${l.label}</a>`).join(" | ");
+  banner.innerHTML = linksHtml;
+
+  // quick chips
+  const chipsEl = document.getElementById("quick-chips");
+  chipsEl.innerHTML = TENANT.quickChips.map(c =>
+    `<button class="chip" onclick="sendMessage('${c.text.replace(/'/g,"\\'")}')">
+       ${c.text}<small>${c.note}</small>
+     </button>`
+  ).join("");
+})();
+
+/* ──────────────────────────────────────────────
+   4. CONSTANTS & STATE
+────────────────────────────────────────────── */
+const NEO4J_URL = "https://9b0f64b5-graphql.production-orch-0336.neo4j.io/graphql";
+const NEO4J_KEY = "d16v0PBfQhJqLwunefWZuYe9rVhqQusk";
+const PINECONE_HOST = "https://chef-krish-index-82tibs6.svc.aped-4627-b74a.pinecone.io";
+const PINECONE_KEY  = "pcsk_cBjcj_DJNFH8AvceY5Qqs1i4qPBVbC9PjWHxcCnMbDSyUmEQqj7FaRHKCxLkkWRzm9quH";
+const VOYAGE_KEY    = "pa-oxJu0meTte3gSxdIBA5oNrJAvW8L83oyDhm5BDDH6ES";
+const MODEL         = "claude-haiku-4-5-20251001";
+
+// Cache: 30-min TTL, exclude allergen + availability queries
+const CACHE_TTL = 30 * 60 * 1000;
+const cache = {};
+
+let anthropicKey = "";
+let connected    = false;
+let conversationHistory = [];
+let queryLog = [];
+let tokens   = { in: 0, out: 0, total: 0, queries: 0 };
+let cart     = [];
+let mediaRecorder, isRecording = false;
+
+/* ──────────────────────────────────────────────
+   5. DISH NAMES (for cart button extraction — tenant-specific)
+   These are loaded dynamically after Neo4j connects.
+────────────────────────────────────────────── */
+let DISH_NAMES = new Set();
+
+/* ──────────────────────────────────────────────
+   6. CONNECT + STATUS CHECK
+────────────────────────────────────────────── */
+document.getElementById("connect-btn").addEventListener("click", async () => {
+  const key = document.getElementById("api-key-input").value.trim();
+  if (!key.startsWith("sk-ant-")) {
+    alert("Anthropic key should start with sk-ant-"); return;
+  }
+  anthropicKey = key;
+  connected    = true;
+  document.getElementById("status-dot").classList.add("on");
+  document.getElementById("status-text").textContent = "Connected";
+  addBotMessage(`${TENANT.emoji} Chef Krish is live for **${TENANT.name}**! How can I help you today?`, "system", 100);
+  await Promise.all([checkNeo4j(), checkPinecone()]);
+  loadDishNames();
+});
+
+async function checkNeo4j() {
+  try {
+    const res = await graphQL(`{ restaurantFeaturesConnection { totalCount } }`);
+    const ok  = res?.data?.restaurantFeaturesConnection !== undefined;
+    document.getElementById("badge-neo4j").className = `badge ${ok ? "ok" : "err"}`;
+    document.getElementById("badge-neo4j").textContent = ok ? "Neo4j ✓" : "Neo4j ✗";
+  } catch { document.getElementById("badge-neo4j").className = "badge err"; }
+}
+
+async function checkPinecone() {
+  try {
+    const res = await fetch(`${PINECONE_HOST}/describe_index_stats`, {
+      method: "POST",
+      headers: { "Api-Key": PINECONE_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({})
+    });
+    const ok = res.ok;
+    document.getElementById("badge-pinecone").className = `badge ${ok ? "ok" : "err"}`;
+    document.getElementById("badge-pinecone").textContent = ok ? "Pinecone ✓" : "Pinecone ✗";
+  } catch { document.getElementById("badge-pinecone").className = "badge err"; }
+}
+
+/* pre-populate status text */
+document.getElementById("status-text").textContent = "Enter key above";
+
+/* ──────────────────────────────────────────────
+   7. LOAD DISH NAMES FROM NEO4J (tenant-aware)
+────────────────────────────────────────────── */
+async function loadDishNames() {
+  try {
+    const q = `{
+      dishes(where: { restaurantId: { eq: "${TENANT.neo4jRestId}" } }) {
+        name
+      }
+    }`;
+    const res = await graphQL(q);
+    const dishes = res?.data?.dishes || [];
+    DISH_NAMES = new Set(dishes.map(d => d.name.toLowerCase()));
+  } catch(e) {
+    console.warn("Could not load dish names:", e);
+  }
+}
+
+/* ──────────────────────────────────────────────
+   8. GRAPHQL HELPER (tenant-aware)
+────────────────────────────────────────────── */
+async function graphQL(query) {
+  const res = await fetch(NEO4J_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": NEO4J_KEY
+    },
+    body: JSON.stringify({ query })
+  });
+  return res.json();
+}
+
+/* Build tenant-aware where clause fragment */
+function tenantWhere(extra = "") {
+  const base = `restaurantId: { eq: "${TENANT.neo4jRestId}" }`;
+  return extra ? `{ ${base}, ${extra} }` : `{ ${base} }`;
+}
+
+/* ──────────────────────────────────────────────
+   9. ROUTING — intent classification
+────────────────────────────────────────────── */
+function classifyIntent(text) {
+  const t = text.toLowerCase();
+  if (/\b(beef|cow|pork|lard)\b/.test(t)) return "beef_guard";
+  if (/\b(allerg|gluten|nut|dairy|lactose|egg|shellfish|peanut)\b/.test(t)) return "allergen";
+  if (/\b(staff|waiter|server|manager|chef|team|employee|who work)\b/.test(t)) return "staff";
+  if (/\b(hour|open|close|timing|when|buffet|schedule)\b/.test(t)) return "timing";
+  if (/\b(feature|facilit|accommodat|accessib|parking|wifi|bar|lounge|valet)\b/.test(t)) return "features";
+  if (/\b(similar to|like |pairs? with|goes? with)\b/.test(t)) return "similar";
+  if (/\b(vegetarian|vegan|veg\b|meatless)\b/.test(t)) return "veg_filter";
+  if (/\b(categor|type|kind|section|section of menu)\b/.test(t)) return "category";
+  return "semantic";  // default → Pinecone
+}
+
+/* ──────────────────────────────────────────────
+   10. CACHE HELPERS
+────────────────────────────────────────────── */
+function cacheKey(intent, text) { return `${TENANT.id}:${intent}:${text.slice(0,80)}`; }
+function safeToCache(intent) {
+  return !["allergen","timing"].includes(intent);
+}
+function getCache(k) {
+  const e = cache[k];
+  if (!e) return null;
+  if (Date.now() - e.ts > CACHE_TTL) { delete cache[k]; return null; }
+  return e.val;
+}
+function setCache(k, val) { cache[k] = { val, ts: Date.now() }; }
+
+/* ──────────────────────────────────────────────
+   11. DATA FETCHERS (all tenant-aware)
+────────────────────────────────────────────── */
+async function fetchStaff() {
+  const q = `{
+    staffs(where: ${tenantWhere()}) {
+      name role speciality phoneNumber
+    }
+  }`;
+  return graphQL(q);
+}
+
+async function fetchTiming() {
+  const q = `{
+    timings(where: ${tenantWhere()}) {
+      dayOfWeek openTime closeTime buffetNote isOpen
+    }
+  }`;
+  return graphQL(q);
+}
+
+async function fetchFeatures() {
+  const q = `{
+    restaurantFeatures(where: ${tenantWhere()}) {
+      name description
+    }
+  }`;
+  return graphQL(q);
+}
+
+async function fetchAllergens() {
+  const q = `{
+    allergens(where: ${tenantWhere()}) {
+      name description dishes { name }
+    }
+  }`;
+  return graphQL(q);
+}
+
+async function fetchVegDishes() {
+  const q = `{
+    dishes(where: ${tenantWhere("isVeg: { eq: true }")}) {
+      name price description isVeg category { name }
+    }
+  }`;
+  return graphQL(q);
+}
+
+async function fetchDish(name) {
+  const q = `{
+    dishes(where: ${tenantWhere(`name: { contains: "${name}" }`)}) {
+      name price description isVeg spiceLevel
+      category { name }
+      pairsWellWith { name price }
+      allergens { name }
+    }
+  }`;
+  return graphQL(q);
+}
+
+async function fetchSimilar(name) {
+  const q = `{
+    dishes(where: ${tenantWhere(`name: { contains: "${name}" }`)}) {
+      name pairsWellWith { name price description }
+    }
+  }`;
+  return graphQL(q);
+}
+
+async function fetchCategories() {
+  const q = `{
+    categories(where: ${tenantWhere()}) {
+      name
+      dishes { name price description }
+    }
+  }`;
+  return graphQL(q);
+}
+
+/* ──────────────────────────────────────────────
+   12. VOYAGE EMBEDDING + PINECONE SEMANTIC SEARCH
+────────────────────────────────────────────── */
+async function embed(text) {
+  const res = await fetch("https://api.voyageai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${VOYAGE_KEY}`
+    },
+    body: JSON.stringify({ input: [text], model: "voyage-3-lite" })
+  });
+  const d = await res.json();
+  return d.data[0].embedding;
+}
+
+async function pineconeSearch(text, excludeName = "", topK = 5) {
+  const vector = await embed(text);
+  const body = {
+    vector,
+    topK,
+    namespace: TENANT.pineconeNS,   // ← TENANT-AWARE
+    includeMetadata: true
+  };
+  if (excludeName) {
+    body.filter = { name: { "$ne": excludeName } };
+  }
+  const res = await fetch(`${PINECONE_HOST}/query`, {
+    method: "POST",
+    headers: { "Api-Key": PINECONE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const d = await res.json();
+  return d.matches || [];
+}
+
+/* ──────────────────────────────────────────────
+   13. CONTEXT BUILDER
+────────────────────────────────────────────── */
+async function buildContext(intent, text) {
+  let ctx = "", source = "none";
+
+  if (intent === "staff") {
+    const d = await fetchStaff();
+    ctx = JSON.stringify(d?.data?.staffs || []);
+    source = "neo4j:staff";
+  } else if (intent === "timing") {
+    const d = await fetchTiming();
+    ctx = JSON.stringify(d?.data?.timings || []);
+    source = "neo4j:timing";
+  } else if (intent === "features") {
+    const d = await fetchFeatures();
+    ctx = JSON.stringify(d?.data?.restaurantFeatures || []);
+    source = "neo4j:features";
+  } else if (intent === "allergen") {
+    const d = await fetchAllergens();
+    ctx = JSON.stringify(d?.data?.allergens || []);
+    source = "neo4j:allergen";
+  } else if (intent === "veg_filter") {
+    const d = await fetchVegDishes();
+    ctx = JSON.stringify(d?.data?.dishes || []);
+    source = "neo4j:veg";
+  } else if (intent === "category") {
+    const d = await fetchCategories();
+    ctx = JSON.stringify(d?.data?.categories || []);
+    source = "neo4j:categories";
+  } else if (intent === "similar") {
+    const match = text.match(/similar to (.+)|like (.+)|pairs? with (.+)|goes? with (.+)/i);
+    const dishName = (match?.[1] || match?.[2] || match?.[3] || match?.[4] || "").trim();
+    if (dishName) {
+      const d = await fetchSimilar(dishName);
+      const neo4jCtx = JSON.stringify(d?.data?.dishes || []);
+      const pine     = await pineconeSearch(text, dishName);
+      ctx    = neo4jCtx + "\n\nSemantic matches:\n" + JSON.stringify(pine);
+      source = "neo4j:pairs + pinecone";
+    } else {
+      const pine = await pineconeSearch(text);
+      ctx = JSON.stringify(pine); source = "pinecone";
+    }
+  } else if (intent === "semantic") {
+    // check if a known dish name is mentioned → fetch from Neo4j first
+    const lowerText = text.toLowerCase();
+    let dishHit = null;
+    for (const dn of DISH_NAMES) {
+      if (lowerText.includes(dn)) { dishHit = dn; break; }
+    }
+    if (dishHit) {
+      const d = await fetchDish(dishHit);
+      const neo4jCtx = JSON.stringify(d?.data?.dishes || []);
+      const pine     = await pineconeSearch(text);
+      ctx    = neo4jCtx + "\n\nSemantic matches:\n" + JSON.stringify(pine);
+      source = "neo4j:dish + pinecone";
+    } else {
+      const pine = await pineconeSearch(text);
+      ctx = JSON.stringify(pine); source = "pinecone";
+    }
+  }
+
+  return { ctx, source };
+}
+
+/* ──────────────────────────────────────────────
+   14. CLAUDE CALL
+────────────────────────────────────────────── */
+async function callClaude(userText, context, intent) {
+  const sysPrompt = `You are Chef Krish, the AI assistant for ${TENANT.name}.
+You only answer questions about this restaurant.
+Use ONLY the context provided — never invent dishes, prices, or staff.
+If context is empty, say you don't have that information right now.
+For allergen questions, be precise and safety-focused.
+For beef/pork, clearly state the restaurant does not serve it (if applicable).
+Format answers warmly and helpfully. Use dish names exactly as they appear in context.
+
+Restaurant: ${TENANT.name}
+Tenant ID: ${TENANT.id}
+
+Context from ${intent} query:
+${context || "No context retrieved."}`;
+
+  const messages = [
+    ...conversationHistory.slice(-8),
+    { role: "user", content: userText }
+  ];
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": anthropicKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-client-side-allow-cors": "true"
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 1024,
+      system: sysPrompt,
+      messages
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || "Claude error");
+
+  tokens.in    += data.usage?.input_tokens  || 0;
+  tokens.out   += data.usage?.output_tokens || 0;
+  tokens.total  = tokens.in + tokens.out;
+  tokens.queries++;
+  updateTokenDisplay();
+
+  return data.content[0].text;
+}
+
+/* ──────────────────────────────────────────────
+   15. GATE 2 — OUTPUT GUARDRAIL
+────────────────────────────────────────────── */
+async function gate2Check(reply, intent) {
+  if (!["allergen","beef_guard"].includes(intent)) return reply;
+
+  const checkPrompt = `You are a safety checker for a restaurant chatbot.
+Review this reply for accuracy and safety. The restaurant serves Indian/halal food (no beef, no pork).
+If the reply correctly and safely addresses allergen or dietary concerns, output it unchanged.
+If there are any hallucinated ingredients or unsafe claims, correct them.
+Output ONLY the corrected reply with no preamble.
+
+Reply to check:
+${reply}`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": anthropicKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-client-side-allow-cors": "true"
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 512,
+      messages: [{ role: "user", content: checkPrompt }]
+    })
+  });
+  const d = await res.json();
+  return d.content?.[0]?.text || reply;
+}
+
+/* ──────────────────────────────────────────────
+   16. EXTRACT DISHES → ADD TO CART BUTTONS
+────────────────────────────────────────────── */
+function extractDishesFromContext(reply) {
+  const found = [];
+  // strict: only add buttons for dish names that exist in our DISH_NAMES set
+  const lower = reply.toLowerCase();
+  for (const dn of DISH_NAMES) {
+    if (lower.includes(dn)) {
+      found.push(dn);
+    }
+  }
+  // also look for "**Dish Name** - $price" patterns (Neo4j data format)
+  const pricePattern = /\*{0,2}([A-Z][a-zA-Z\s'&-]{2,40})\*{0,2}\s*[-–]\s*\$(\d+\.?\d*)/g;
+  let m;
+  while ((m = pricePattern.exec(reply)) !== null) {
+    const dishName = m[1].trim();
+    const price    = parseFloat(m[2]);
+    if (!found.find(f => f.name === dishName)) {
+      found.push({ name: dishName, price });
+    }
+  }
+  return found;
+}
+
+function renderCartButtons(dishes) {
+  if (!dishes.length) return "";
+  return "<div style='margin-top:8px'>" +
+    dishes.map(d => {
+      const name  = typeof d === "string" ? d : d.name;
+      const price = typeof d === "object" && d.price ? d.price : null;
+      const priceStr = price ? ` ($${price.toFixed(2)})` : "";
+      return `<button class="cart-add-btn" onclick="addToCart('${name.replace(/'/g,"\\'")}', ${price || 0})">
+        + Cart: ${name}${priceStr}
+      </button>`;
+    }).join("") +
+  "</div>";
+}
+
+/* ──────────────────────────────────────────────
+   17. MAIN SEND FLOW
+────────────────────────────────────────────── */
+async function sendMessage(text) {
+  text = (text || document.getElementById("user-input").value).trim();
+  if (!text) return;
+  if (!connected) { alert("Please enter your Anthropic API key first."); return; }
+
+  document.getElementById("user-input").value = "";
+  addUserMessage(text);
+
+  const intent = classifyIntent(text);
+
+  // beef guard — no API call needed
+  if (intent === "beef_guard") {
+    addBotMessage(`We don't serve beef or pork at ${TENANT.name}. Is there something else I can help you with? 🙏`, "beef-guard", 99);
+    logQuery(text, "beef-guard", 99);
+    return;
+  }
+
+  const thinkingId = addThinking();
+
+  try {
+    // check cache
+    const ck = cacheKey(intent, text);
+    let reply, source, conf;
+
+    if (safeToCache(intent) && getCache(ck)) {
+      ({ reply, source, conf } = getCache(ck));
+    } else {
+      const { ctx, source: src } = await buildContext(intent, text);
+      source = src;
+
+      let rawReply = await callClaude(text, ctx, intent);
+      rawReply     = await gate2Check(rawReply, intent);
+      reply        = rawReply;
+      conf         = ctx ? (source.startsWith("neo4j") ? 95 : 82) : 40;
+
+      if (safeToCache(intent)) setCache(ck, { reply, source, conf });
+    }
+
+    removeThinking(thinkingId);
+
+    // extract dishes for cart buttons
+    const dishes   = extractDishesFromContext(reply);
+    const cartHTML = renderCartButtons(dishes);
+
+    addBotMessage(reply + cartHTML, source, conf, true);
+    logQuery(text, source, conf);
+
+    // update conversation history
+    conversationHistory.push({ role: "user", content: text });
+    conversationHistory.push({ role: "assistant", content: reply });
+
+    // log to Sheets if configured
+    logToSheets({ type: "chat", q: text, a: reply, src: source, conf });
+
+  } catch(e) {
+    removeThinking(thinkingId);
+    addBotMessage(`Sorry, something went wrong: ${e.message}`, "error", 0);
+    console.error(e);
+  }
+}
+
+/* ──────────────────────────────────────────────
+   18. GOOGLE SHEETS LOGGER
+────────────────────────────────────────────── */
+async function logToSheets({ type, q, a, src, conf }) {
+  const url = TENANT.sheetsUrl;
+  if (!url || url.startsWith("SHEETS_URL")) return;
+  try {
+    await fetch(url, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type,
+        tenant: TENANT.id,
+        timestamp: new Date().toISOString(),
+        query: q,
+        answer: a?.slice(0, 500),
+        source: src,
+        confidence: conf
+      })
+    });
+  } catch(e) { console.warn("Sheets log failed:", e); }
+}
+
+/* ──────────────────────────────────────────────
+   19. CART LOGIC
+────────────────────────────────────────────── */
+function addToCart(name, price) {
+  const existing = cart.find(i => i.name === name);
+  if (existing) { existing.qty++; }
+  else { cart.push({ name, price: price || 0, qty: 1 }); }
+  renderCart();
+  openCart();
+}
+
+function renderCart() {
+  const el    = document.getElementById("cart-items");
+  const count = cart.reduce((s, i) => s + i.qty, 0);
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+
+  document.getElementById("cart-count").textContent = count;
+  document.getElementById("cart-total").textContent = `Total $${total.toFixed(2)}`;
+
+  if (!cart.length) {
+    el.innerHTML = `<p style="color:var(--text-muted);font-size:0.8rem;padding:12px 0;">Your cart is empty.<br/>Ask Chef Krish for recommendations!</p>`;
+    return;
+  }
+
+  el.innerHTML = cart.map((item, idx) => `
+    <div class="cart-item">
+      <div class="cart-item-name">${item.name}</div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="changeQty(${idx},-1)">−</button>
+        <span class="qty-val">${item.qty}</span>
+        <button class="qty-btn" onclick="changeQty(${idx},+1)">+</button>
+      </div>
+      <div class="cart-item-price">$${(item.price * item.qty).toFixed(2)}</div>
+    </div>
+  `).join("");
+}
+
+function changeQty(idx, delta) {
+  cart[idx].qty += delta;
+  if (cart[idx].qty <= 0) cart.splice(idx, 1);
+  renderCart();
+}
+
+function openCart()  { document.getElementById("cart-panel").classList.add("open"); }
+function closeCart() { document.getElementById("cart-panel").classList.remove("open"); }
+
+document.getElementById("cart-btn").addEventListener("click", openCart);
+document.getElementById("cart-close").addEventListener("click", closeCart);
+
+/* ──────────────────────────────────────────────
+   20. WHATSAPP ORDER
+────────────────────────────────────────────── */
+document.getElementById("whatsapp-btn").addEventListener("click", () => {
+  const waNumber = TENANT.waNumber;
+  if (!waNumber || waNumber.startsWith("WHATSAPP")) {
+    alert("WhatsApp number not configured for this restaurant yet."); return;
+  }
+  if (!cart.length) { alert("Your cart is empty!"); return; }
+
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const items = cart.map(i => `• ${i.name} × ${i.qty} — $${(i.price * i.qty).toFixed(2)}`).join("\n");
+  const msg   = `*Order from ${TENANT.name}* 🍴\n\n${items}\n\n*Total: $${total.toFixed(2)}*\nPickup in ~30 mins. Pay at counter.`;
+
+  const url = `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`;
+  window.open(url, "_blank");
+
+  logToSheets({ type: "whatsapp_order", q: "ORDER", a: msg, src: "cart", conf: 100 });
+});
+
+/* ──────────────────────────────────────────────
+   21. UI HELPERS — messages
+────────────────────────────────────────────── */
+function addUserMessage(text) {
+  const el = document.getElementById("messages");
+  el.insertAdjacentHTML("beforeend", `
+    <div class="msg user">
+      <div class="msg-bubble">${escHtml(text)}</div>
+    </div>
+  `);
+  el.scrollTop = el.scrollHeight;
+}
+
+function addBotMessage(html, source, conf, raw = false) {
+  const el = document.getElementById("messages");
+  const content = raw ? html : escHtml(html);
+  el.insertAdjacentHTML("beforeend", `
+    <div class="msg bot">
+      <div class="msg-bubble">${content}</div>
+      <div class="msg-meta">${source || ""} ${conf ? `· ${conf}% confidence` : ""}</div>
+    </div>
+  `);
+  el.scrollTop = el.scrollHeight;
+}
+
+let thinkIdx = 0;
+function addThinking() {
+  const id = `think-${++thinkIdx}`;
+  document.getElementById("messages").insertAdjacentHTML("beforeend", `
+    <div class="msg bot" id="${id}">
+      <div class="msg-bubble">
+        <div class="thinking"><span></span><span></span><span></span></div>
+      </div>
+    </div>
+  `);
+  document.getElementById("messages").scrollTop = 999999;
+  return id;
+}
+function removeThinking(id) {
+  document.getElementById(id)?.remove();
+}
+function escHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+          .replace(/\n/g,"<br>").replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");
+}
+
+/* ──────────────────────────────────────────────
+   22. QUERY LOG
+────────────────────────────────────────────── */
+function logQuery(q, src, conf) {
+  queryLog.unshift({ q, src, conf, ts: new Date().toLocaleTimeString() });
+  renderLogs();
+}
+function renderLogs() {
+  const el = document.getElementById("logs-panel");
+  if (!queryLog.length) { el.innerHTML = "<p style='color:var(--text-muted)'>No queries yet.</p>"; return; }
+  el.innerHTML = queryLog.map(e => `
+    <div class="log-entry">
+      <div class="log-q">${escHtml(e.q)}</div>
+      <div class="log-src">→ ${e.src}</div>
+      <div class="log-conf">${e.conf}% · ${e.ts}</div>
+    </div>
+  `).join("");
+}
+
+/* ──────────────────────────────────────────────
+   23. TOKEN DISPLAY
+────────────────────────────────────────────── */
+function updateTokenDisplay() {
+  document.getElementById("tok-in").textContent      = tokens.in.toLocaleString();
+  document.getElementById("tok-out").textContent     = tokens.out.toLocaleString();
+  document.getElementById("tok-total").textContent   = tokens.total.toLocaleString();
+  document.getElementById("tok-queries").textContent = tokens.queries;
+}
+function resetTokens() {
+  tokens = { in:0, out:0, total:0, queries:0 };
+  updateTokenDisplay();
+}
+
+/* ──────────────────────────────────────────────
+   24. VOICE INPUT
+────────────────────────────────────────────── */
+document.getElementById("voice-btn").addEventListener("click", async () => {
+  if (isRecording) {
+    mediaRecorder?.stop();
+    isRecording = false;
+    document.getElementById("voice-btn").classList.remove("recording");
+    document.getElementById("voice-btn").textContent = "🎤";
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder  = new MediaRecorder(stream);
+    const chunks   = [];
+    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunks, { type: "audio/webm" });
+      const url  = URL.createObjectURL(blob);
+      // Basic: use SpeechRecognition API if available
+      if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const sr = new SR();
+        sr.onresult = ev => {
+          document.getElementById("user-input").value = ev.results[0][0].transcript;
+        };
+        sr.start();
+      }
+      stream.getTracks().forEach(t => t.stop());
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    document.getElementById("voice-btn").classList.add("recording");
+    document.getElementById("voice-btn").textContent = "⏹";
+  } catch(e) { alert("Microphone access denied."); }
+});
+
+/* ──────────────────────────────────────────────
+   25. TABS
+────────────────────────────────────────────── */
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+  });
+});
+
+/* ──────────────────────────────────────────────
+   26. SEND ON ENTER
+────────────────────────────────────────────── */
+document.getElementById("user-input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+document.getElementById("send-btn").addEventListener("click", () => sendMessage());
+
+/* ──────────────────────────────────────────────
+   27. GOOGLE SIGN-IN
+────────────────────────────────────────────── */
+function handleSignIn(response) {
+  const CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"; // ← fill in Google Cloud Console
+  if (!CLIENT_ID || CLIENT_ID === "YOUR_GOOGLE_CLIENT_ID") {
+    console.warn("Google OAuth Client ID not configured.");
+    return;
+  }
+  const payload = JSON.parse(atob(response.credential.split(".")[1]));
+  document.getElementById("signin-btn").textContent = `👤 ${payload.name.split(" ")[0]}`;
+}
+
+document.getElementById("signin-btn").addEventListener("click", () => {
+  // Trigger Google sign-in popup if GSI available
+  if (window.google?.accounts?.id) {
+    window.google.accounts.id.prompt();
+  }
+});
+
+/* ──────────────────────────────────────────────
+   28. BOOT MESSAGE
+────────────────────────────────────────────── */
+(function boot() {
+  addBotMessage(
+    `${TENANT.emoji} Welcome to <strong>${TENANT.name}</strong>! I'm Chef Krish, your AI guide.<br/>Enter your Anthropic API key above to get started.`,
+    "system", null, true
+  );
+})();
+</script>
+</body>
+</html>
